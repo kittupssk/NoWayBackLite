@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="NoWayBackLite: catch the thief, or be the thief, on a new road map every game. A cop-and-robber puzzle with a perfect computer opponent.">
+<meta name="color-scheme" content="dark light">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Ccircle cx=%2732%27 cy=%2732%27 r=%2730%27 fill=%27%232563d9%27/%3E%3Cpolygon points=%2732,12 37,26 52,26 40,35 44,50 32,41 20,50 24,35 12,26 27,26%27 fill=%27white%27/%3E%3C/svg%3E">
 <style>body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
 <title>NoWayBackLite</title>
@@ -53,7 +54,7 @@ h1 span{color:var(--thief)}
 @keyframes ring{from{transform:scale(1);opacity:.6}to{transform:scale(1.9);opacity:0}}
 .tok{transition:transform .38s cubic-bezier(.3,.7,.3,1);pointer-events:none}
 .tok-p{fill:var(--police)}.tok-p-star{fill:#fff}
-.tok-t{fill:var(--thief)}.tok-t-mask{fill:var(--ink)}.tok-t-eye{fill:#fff}
+.tok-t{fill:var(--thief)}.tok-t-mask{fill:#17202e}.tok-t-eye{fill:#fff}
 .rp-police{fill:none;stroke:var(--police);stroke-width:7;stroke-linecap:round;stroke-linejoin:round;opacity:.55;pointer-events:none}
 .rp-thief{fill:none;stroke:var(--thief);stroke-width:4;stroke-dasharray:3 8;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
 .rp-num circle{fill:var(--police)}.rp-num text{fill:#fff;font-family:var(--mono);font-size:13px;font-weight:500;text-anchor:middle;dominant-baseline:central}
@@ -83,6 +84,7 @@ button:hover:not(:disabled){border-color:var(--ink)}
 button:disabled{opacity:.45;cursor:not-allowed}
 button.primary{background:var(--police);border-color:var(--police);color:#fff}
 button:focus-visible,select:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.themebtn{font-size:.9rem;padding:7px 12px;align-self:center}
 label.sel{display:flex;flex-direction:column;gap:4px;font-family:var(--mono);font-size:.75rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 label.sel select{font-family:var(--body);text-transform:none;letter-spacing:0;font-size:1rem}
 details{border-top:1px solid var(--line);padding-top:12px}
@@ -99,6 +101,7 @@ details ul{margin:8px 0 0;padding-left:1.2em;display:flex;flex-direction:column;
       <h1>NoWay<span>Back</span>Lite</h1>
       <p class="tag">Catch the thief, or be the thief, on a new map every game.</p>
     </div>
+    <button id="themeBtn" class="themebtn" type="button" aria-label="Switch to light theme">☀ Light</button>
   </header>
   <main class="layout">
     <section class="boardcard" aria-label="Patrol map"><div id="boardHost"></div></section>
@@ -107,6 +110,22 @@ details ul{margin:8px 0 0;padding-left:1.2em;display:flex;flex-direction:column;
 </div>
 
 <script>
+/* ---------- theme: dark by default, the player's choice is remembered in this browser ---------- */
+function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  const b = document.getElementById('themeBtn');
+  b.textContent = t === 'dark' ? '☀ Light' : '☾ Dark';
+  b.setAttribute('aria-label', t === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
+}
+let savedTheme = null;
+try { savedTheme = localStorage.getItem('nowaybacklite-theme'); } catch (e) {}
+setTheme(savedTheme === 'light' ? 'light' : 'dark');
+document.getElementById('themeBtn').addEventListener('click', () => {
+  const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  setTheme(t);
+  try { localStorage.setItem('nowaybacklite-theme', t); } catch (e) {}
+});
+
 /* ---------- settings ---------- */
 const LEVELS = {
   easy:   { name: 'Easy',   cols: 4, rows: 3, drop: .08, extra: .4,  diag: .35, skill: .5,  band: [0, .4],  hints: 3, minNodes: 9,
