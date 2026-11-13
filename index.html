@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="NoWayBackLite: catch the thief, or be the thief, on a new road map every game. A cop-and-robber puzzle with a perfect computer opponent.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Ccircle cx=%2732%27 cy=%2732%27 r=%2730%27 fill=%27%232563d9%27/%3E%3Cpolygon points=%2732,12 37,26 52,26 40,35 44,50 32,41 20,50 24,35 12,26 27,26%27 fill=%27white%27/%3E%3C/svg%3E">
+<style>body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+<title>NoWayBackLite</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=DM+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a city patrol map (junctions and roads) on the left, a compact case card on the right; stacks on phones. */
+:root{
+  --paper:#eef2f6; --card:#ffffff; --ink:#17202e; --muted:#5d6879; --line:#d5dce6;
+  --road:#2a3547; --node:#ffffff; --police:#2563d9; --police-soft:#d8e4fb; --thief:#c8325f; --thief-soft:#f6d9e2;
+  --gold:#e0a419; --good:#1f8a5a;
+  --display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body:"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --mono:"DM Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --paper:#0f141c; --card:#171e2a; --ink:#e9eef6; --muted:#97a3b6; --line:#2a3445;
+  --road:#a9b6ca; --node:#0f141c; --police:#5b91ff; --police-soft:#1c2c4d; --thief:#ff6b93; --thief-soft:#45202c;
+  --gold:#f2bd3e; --good:#43c58a; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --paper:#0f141c; --card:#171e2a; --ink:#e9eef6; --muted:#97a3b6; --line:#2a3445;
+  --road:#a9b6ca; --node:#0f141c; --police:#5b91ff; --police-soft:#1c2c4d; --thief:#ff6b93; --thief-soft:#45202c;
+  --gold:#f2bd3e; --good:#43c58a; color-scheme:dark }
+html,body{background:var(--paper);color:var(--ink)}
+body{font-family:var(--body);font-size:16px;line-height:1.5}
+.app{max-width:1100px;margin:0 auto;padding:20px 16px 48px;display:flex;flex-direction:column;gap:18px}
+header{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(2rem,5.5vw,3rem);line-height:1;margin:0;letter-spacing:-.02em}
+h1 span{color:var(--thief)}
+.tag{margin:6px 0 0;color:var(--muted)}
+.layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:820px){.layout{grid-template-columns:minmax(0,1fr)}}
+.boardcard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px;min-width:0}
+#board{width:100%;height:auto;display:block}
+.road{stroke:var(--road);stroke-width:5;stroke-linecap:round}
+.road.diag{stroke-dasharray:1 0}
+.trail{stroke:var(--thief);stroke-width:4;stroke-linecap:round;stroke-dasharray:2 9;opacity:.75}
+.node{fill:var(--node);stroke:var(--road);stroke-width:4}
+.hit{fill:transparent;cursor:default}
+.opt .node{stroke:var(--police);stroke-width:5}
+.opt .hit{cursor:pointer}
+.opt .ring{fill:none;stroke:var(--police);stroke-width:3;opacity:.55;animation:ring 1.4s ease-out infinite;transform-box:fill-box;transform-origin:center}
+.opt:hover .node,.opt:focus-visible .node{fill:var(--police-soft)}
+.opt:focus{outline:none}
+.hint .node{fill:var(--gold);stroke:var(--gold)}
+@keyframes ring{from{transform:scale(1);opacity:.6}to{transform:scale(1.9);opacity:0}}
+.tok{transition:transform .38s cubic-bezier(.3,.7,.3,1);pointer-events:none}
+.tok-p{fill:var(--police)}.tok-p-star{fill:#fff}
+.tok-t{fill:var(--thief)}.tok-t-mask{fill:var(--ink)}.tok-t-eye{fill:#fff}
+.rp-police{fill:none;stroke:var(--police);stroke-width:7;stroke-linecap:round;stroke-linejoin:round;opacity:.55;pointer-events:none}
+.rp-thief{fill:none;stroke:var(--thief);stroke-width:4;stroke-dasharray:3 8;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+.rp-num circle{fill:var(--police)}.rp-num text{fill:#fff;font-family:var(--mono);font-size:13px;font-weight:500;text-anchor:middle;dominant-baseline:central}
+.rp-num{pointer-events:none}
+.replay{border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.topt .node{stroke:var(--thief)}.topt .ring{stroke:var(--thief)}.topt:hover .node,.topt:focus-visible .node{fill:var(--thief-soft)}
+.hint-ring{fill:none;stroke:var(--gold);stroke-width:5;stroke-dasharray:6 5;pointer-events:none}
+.caught-burst{fill:none;stroke:var(--gold);stroke-width:6;animation:burst .9s ease-out forwards;transform-box:fill-box;transform-origin:center}
+@keyframes burst{from{opacity:1;transform:scale(.4)}to{opacity:0;transform:scale(2.2)}}
+@media (prefers-reduced-motion:reduce){.tok{transition:none}.opt .ring,.caught-burst{animation:none;opacity:.5}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.eyebrow{margin:0;font-family:var(--mono);font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.panel h2{font-family:var(--display);font-weight:800;font-size:1.7rem;line-height:1.05;margin:0;text-wrap:balance}
+.panel p{margin:0}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.stat{border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.stat b{display:block;font-family:var(--mono);font-size:1.4rem;font-weight:500;font-variant-numeric:tabular-nums}
+.stat span{font-size:.78rem;color:var(--muted)}
+.stars{font-size:1.6rem;letter-spacing:.15em;color:var(--line)}
+.stars .on{color:var(--gold)}
+.msg{padding:10px 12px;border-radius:10px;background:var(--police-soft);font-size:.95rem}
+.msg.warn{background:var(--thief-soft)}
+.msg.win{background:color-mix(in srgb,var(--good) 18%,var(--card))}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+button,select{font:inherit;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:9px 14px;font-weight:700;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--ink)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--police);border-color:var(--police);color:#fff}
+button:focus-visible,select:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+label.sel{display:flex;flex-direction:column;gap:4px;font-family:var(--mono);font-size:.75rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+label.sel select{font-family:var(--body);text-transform:none;letter-spacing:0;font-size:1rem}
+details{border-top:1px solid var(--line);padding-top:12px}
+summary{cursor:pointer;font-weight:700}
+details ul{margin:8px 0 0;padding-left:1.2em;display:flex;flex-direction:column;gap:6px}
+.muted{color:var(--muted)}
+</style>
+
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>NoWay<span>Back</span>Lite</h1>
+      <p class="tag">Catch the thief, or be the thief, on a new map every game.</p>
+    </div>
+  </header>
+  <main class="layout">
+    <section class="boardcard" aria-label="Patrol map"><div id="boardHost"></div></section>
+    <aside class="panel" id="panel" aria-live="polite"></aside>
+  </main>
+</div>
+
+<script>
+/* ---------- settings ---------- */
+const LEVELS = {
+  easy:   { name: 'Easy',   cols: 4, rows: 3, drop: .08, extra: .4,  diag: .35, skill: .5,  band: [0, .4],  hints: 3, minNodes: 9,
+            minPar: 2, maxPar: 6, naive: 'any',   limit: p => 2 * p + 4,
+            asThief: { copSkill: .5, survive: 8, check: 'none' } },
+  normal: { name: 'Normal', cols: 5, rows: 4, drop: .1,  extra: .35, diag: .3,  skill: .8,  band: [.45, .85], hints: 2, minNodes: 14,
+            minPar: 4, maxPar: 10, naive: 'noPar', limit: p => 2 * p + 4,
+            asThief: { copSkill: .85, par: [6, 12], check: 'sometimes' } },
+  hard:   { name: 'Hard',   cols: 7, rows: 5, drop: .1,  extra: .35, diag: .15, skill: 1,   band: [.5, 1],  hints: 1, minNodes: 26,
+            minPar: 7, maxPar: 16, naive: 'never', limit: p => Math.ceil(1.5 * p) + 2,
+            asThief: { copSkill: 1, par: [9, 16], check: 'always' } }
+};
+const GAP = 120, PAD = 50, INF = 1e9;
+let level = 'normal', role = 'police', G = null;
+const rnd = a => a[Math.floor(Math.random() * a.length)];
+const last = a => a[a.length - 1];
+
+/* ---------- map generator ----------
+   Junctions on a loose grid; a random spanning tree keeps every junction reachable, extra roads add loops,
+   and diagonal shortcuts inside a block make triangles. Never two diagonals in one block, so roads never cross. */
+function genMap(L) {
+  const { cols, rows } = L, N = cols * rows, alive = Array(N).fill(true), id = (c, r) => r * cols + c;
+  for (let i = 0; i < N; i++) if (Math.random() < L.drop) alive[i] = false;
+  const key = (a, b) => a < b ? a + '-' + b : b + '-' + a, edges = new Map();
+  const grid = [];
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    if (c + 1 < cols) grid.push([id(c, r), id(c + 1, r)]);
+    if (r + 1 < rows) grid.push([id(c, r), id(c, r + 1)]);
+  }
+  const E = grid.filter(([a, b]) => alive[a] && alive[b]).sort(() => Math.random() - .5);
+  const par = [...Array(N).keys()], f = x => par[x] === x ? x : (par[x] = f(par[x])), rest = [];
+  for (const [a, b] of E) { if (f(a) !== f(b)) { par[f(a)] = f(b); edges.set(key(a, b), false); } else rest.push([a, b]); }
+  for (const [a, b] of rest) if (Math.random() < L.extra) edges.set(key(a, b), false);
+  for (let r = 0; r + 1 < rows; r++) for (let c = 0; c + 1 < cols; c++) {
+    const q = [id(c, r), id(c + 1, r), id(c, r + 1), id(c + 1, r + 1)];
+    if (!q.every(i => alive[i]) || Math.random() >= L.diag) continue;
+    const [a, b, x, y] = Math.random() < .5 ? [q[0], q[3], q[1], q[1]] : [q[1], q[2], q[3], q[3]];
+    edges.set(key(a, b), true); edges.set(key(a, x), edges.get(key(a, x)) || false); edges.set(key(x, b), edges.get(key(x, b)) || false);
+  }
+  const adj = Array.from({ length: N }, () => []);
+  for (const k of edges.keys()) { const [a, b] = k.split('-').map(Number); adj[a].push(b); adj[b].push(a); }
+  let best = [];
+  const seen = new Set();
+  for (let i = 0; i < N; i++) if (alive[i] && adj[i].length && !seen.has(i)) {
+    const comp = [i], q = [i]; seen.add(i);
+    while (q.length) { const u = q.shift(); for (const v of adj[u]) if (!seen.has(v)) { seen.add(v); comp.push(v); q.push(v); } }
+    if (comp.length > best.length) best = comp;
+  }
+  const keep = new Set(best);
+  for (let i = 0; i < N; i++) adj[i] = keep.has(i) ? adj[i].filter(j => keep.has(j)) : [];
+  // No dead ends: every junction needs at least two roads. Add a straight road to a neighbouring junction where
+  // possible; otherwise remove the junction. Repeat until none are left. Removing a dead end never disconnects the map.
+  for (let again = true; again; ) {
+    again = false;
+    for (const i of [...keep]) {
+      if (adj[i].length >= 2) continue;
+      const c = i % cols, r = Math.floor(i / cols);
+      const near = [[c + 1, r], [c - 1, r], [c, r + 1], [c, r - 1]].filter(([x, y]) => x >= 0 && y >= 0 && x < cols && y < rows)
+        .map(([x, y]) => id(x, y)).filter(j => keep.has(j) && !adj[i].includes(j));
+      if (near.length) { const j = rnd(near); adj[i].push(j); adj[j].push(i); edges.set(key(i, j), false); }
+      else {
+        for (const j of adj[i]) adj[j] = adj[j].filter(x => x !== i);
+        adj[i] = []; keep.delete(i);
+        for (const k of [...edges.keys()]) { const [a, b] = k.split('-').map(Number); if (a === i || b === i) edges.delete(k); }
+      }
+      again = true;
+    }
+  }
+  best = [...keep];
+  const roads = [...edges.entries()].map(([k, d]) => { const [a, b] = k.split('-').map(Number); return { a, b, diag: d }; }).filter(e => keep.has(e.a) && keep.has(e.b));
+  const pos = [];
+  for (let i = 0; i < N; i++) { const c = i % cols, r = Math.floor(i / cols);
+    pos.push([PAD + c * GAP, PAD + r * GAP]); }   // a clean grid: every straight road is the same length
+  return { N, cols, rows, adj, nodes: best, roads, pos };
+}
+
+/* ---------- exact solver ----------
+   C[c][r]: police to move, T[c][r]: thief to move. Value = moves (both sides counted) until the catch, INF if the
+   thief can run forever. Both sides must move every turn; the thief never steps onto the police; a thief with no
+   legal move is caught. */
+function solve(m) {
+  // Retrograde analysis: start from the finished positions and work backwards in order of moves remaining,
+  // settling each position exactly once. Same answers as repeating the rules until nothing changes, much faster.
+  const { N, adj, nodes } = m;
+  const C = Array.from({ length: N }, () => Array(N).fill(INF)), T = Array.from({ length: N }, () => Array(N).fill(INF));
+  const left = Array.from({ length: N }, () => Array(N).fill(0));   // thief moves not yet known to lose
+  const buckets = [];
+  const push = (v, item) => { (buckets[v] || (buckets[v] = [])).push(item); };
+  for (const c of nodes) for (const r of nodes) {
+    if (c === r) { T[c][r] = 0; push(0, [0, c, r]); continue; }
+    const k = adj[r].filter(x => x !== c).length;
+    left[c][r] = k;
+    if (k === 0) { T[c][r] = 1; push(1, [0, c, r]); }   // cornered: no road the thief can take
+  }
+  for (let v = 0; v < buckets.length; v++) {
+    const B = buckets[v]; if (!B) continue;
+    for (let q = 0; q < B.length; q++) {
+      const [isC, c, r] = B[q];
+      if (!isC) {   // thief-to-move settled at v: the police could have moved here from any neighbour of c
+        for (const c0 of adj[c]) if (c0 !== r && C[c0][r] === INF) { C[c0][r] = v + 1; push(v + 1, [1, c0, r]); }
+      } else {      // police-to-move settled at v: the thief could have come from any neighbour r0 of r
+        for (const r0 of adj[r]) {
+          if (r0 === c || T[c][r0] !== INF) continue;
+          if (--left[c][r0] === 0) { T[c][r0] = v + 1; push(v + 1, [0, c, r0]); }
+        }
+      }
+    }
+  }
+  return { C, T };
+}
+const plies2moves = p => Math.ceil(p / 2);   // police moves needed for a catch that takes p moves in total
+function bfsDist(m, from) { const d = Array(m.N).fill(INF); d[from] = 0; const q = [from]; while (q.length) { const u = q.shift(); for (const v of m.adj[u]) if (d[v] > d[u] + 1) { d[v] = d[u] + 1; q.push(v); } } return d; }
+// The perfect thief: the escape that delays the catch longest; among equals, stay farther from the police, then keep more roads open.
+function perfectThief(m, S, c, t) {
+  const opts = m.adj[t].filter(x => x !== c); if (!opts.length) return null;
+  const dc = bfsDist(m, c), key = x => [S.C[c][x], dc[x], m.adj[x].length];
+  return opts.reduce((a, b) => { const ka = key(a), kb = key(b); for (let i = 0; i < 3; i++) if (kb[i] !== ka[i]) return kb[i] > ka[i] ? b : a; return a; });
+}
+// A naive police player who just walks toward the thief. Returns police moves to the catch, or null if it fails.
+function naiveChase(m, S, c, t, limit) {
+  for (let mv = 1; mv <= limit; mv++) {
+    const d = bfsDist(m, t), best = Math.min(...m.adj[c].map(x => d[x]));
+    c = rnd(m.adj[c].filter(x => d[x] === best)); if (c === t) return mv;
+    t = perfectThief(m, S, c, t); if (t == null) return mv;
+  }
+  return null;
+}
+// The computer police: the move that catches fastest; among equals, the one that gets closest to the thief.
+function perfectCop(m, S, c, t) {
+  const dt = bfsDist(m, t), key = x => [x === t ? 0 : S.T[x][t], dt[x]];
+  return m.adj[c].reduce((a, b) => { const ka = key(a), kb = key(b); for (let i = 0; i < 2; i++) if (kb[i] !== ka[i]) return kb[i] < ka[i] ? b : a; return a; });
+}
+function greedyCop(m, c, t) { const d = bfsDist(m, t), best = Math.min(...m.adj[c].map(x => d[x])); return rnd(m.adj[c].filter(x => d[x] === best)); }
+// A naive thief who just runs as far from the police as it can. True if it survives `survive` police moves against a perfect police.
+function naiveRun(m, S, c, t, survive) {
+  for (let mv = 1; mv <= survive; mv++) {
+    c = perfectCop(m, S, c, t); if (c === t) return false;
+    const opts = m.adj[t].filter(x => x !== c); if (!opts.length) return false;
+    if (mv === survive) return true;
+    const d = bfsDist(m, c), far = Math.max(...opts.map(x => d[x])); t = rnd(opts.filter(x => d[x] === far));
+  }
+  return true;
+}
+// Pick a starting position when you play the thief. Returns { thief, survive, par } or null.
+function thiefStart(L, m, S, cop, d) {
+  const T = L.asThief, cands = m.nodes.filter(r => d[r] >= 2 && !(S.C[cop][r] < INF && plies2moves(S.C[cop][r]) < 3)).sort(() => Math.random() - .5);
+  if (T.check === 'none') { const r = cands.find(x => S.C[cop][x] >= INF); return r === undefined ? null : { thief: r, survive: T.survive, par: null }; }
+  const fit = cands.filter(r => S.C[cop][r] < INF && plies2moves(S.C[cop][r]) >= T.par[0] && plies2moves(S.C[cop][r]) <= T.par[1]);
+  for (const r of fit.slice(0, 10)) {
+    const p = plies2moves(S.C[cop][r]);
+    const survive = p - 1;   // the best police catch you one move after the limit: survival is possible but tight
+    let naiveOk = 0; for (let k = 0; k < 12; k++) if (naiveRun(m, S, cop, r, survive)) naiveOk++;
+    if (T.check === 'always' && naiveOk > 0) continue;   // Hard: just running away must never work
+    if (T.check === 'sometimes' && naiveOk === 12) continue;   // Normal: it must not always work
+    return { thief: r, survive, par: p };
+  }
+  return null;
+}
+// Does this start need real thinking? Hard: walking toward the thief never works. Normal: it never reaches par.
+function needsThought(L, m, S, cop, thief, par, limit) {
+  if (L.naive === 'any') return true;
+  for (let k = 0; k < 12; k++) { const n = naiveChase(m, S, cop, thief, limit); if (n != null && (L.naive === 'never' || n <= par)) return false; }
+  return true;
+}
+
+/* ---------- a new game ---------- */
+function newGame() {
+  stopReplay();
+  const L = LEVELS[level];
+  for (let tries = 0; tries < 1500; tries++) {
+    const m = genMap(L);
+    if (m.nodes.length < L.minNodes) continue;
+    const S = solve(m);
+    const cop = rnd(m.nodes);
+    const bfs = [cop], d = { [cop]: 0 };
+    while (bfs.length) { const u = bfs.shift(); for (const v of m.adj[u]) if (d[v] === undefined) { d[v] = d[u] + 1; bfs.push(v); } }
+    if (role === 'thief') {
+      const st = thiefStart(L, m, S, cop, d); if (!st) continue;
+      G = { role, m, S, cop, thief: st.thief, start: { cop, thief: st.thief }, par: st.par, survive: st.survive, moves: 0, hints: L.hints, hintNode: null,
+            trail: [], over: null, busy: true, level, history: [{ cop, thief: st.thief, by: null }], replay: null };
+      drawMap(); render(); setTimeout(aiCopTurn, 700);
+      return;
+    }
+    const starts = m.nodes.filter(r => d[r] >= 2 && S.C[cop][r] < INF && plies2moves(S.C[cop][r]) >= L.minPar && plies2moves(S.C[cop][r]) <= L.maxPar).sort((a, b) => S.C[cop][a] - S.C[cop][b]);
+    if (!starts.length) continue;
+    const from = Math.floor(L.band[0] * starts.length), to = Math.max(from + 1, Math.ceil(L.band[1] * starts.length));
+    const pool = starts.slice(from, to).sort(() => Math.random() - .5).slice(0, 8);
+    const thief = pool.find(t => needsThought(L, m, S, cop, t, plies2moves(S.C[cop][t]), L.limit(plies2moves(S.C[cop][t]))));
+    if (thief === undefined) continue;
+    const par = plies2moves(S.C[cop][thief]);
+    G = { role, m, S, cop, thief, start: { cop, thief }, par, limit: L.limit(par), moves: 0, hints: L.hints, hintNode: null,
+          trail: [], over: null, busy: false, level, history: [{ cop, thief, by: null }], replay: null };
+    drawMap(); render();
+    return;
+  }
+}
+function restart() {
+  stopReplay();
+  Object.assign(G, { cop: G.start.cop, thief: G.start.thief, moves: 0, hints: LEVELS[G.level].hints, hintNode: null, trail: [], over: null, busy: G.role === 'thief', history: [{ cop: G.start.cop, thief: G.start.thief, by: null }], replay: null });
+  drawMap(); render();
+  if (G.role === 'thief') setTimeout(aiCopTurn, 700);
+}
+
+/* ---------- turns ---------- */
+function copMove(to) {
+  if (G.over || G.busy || !G.m.adj[G.cop].includes(to)) return;
+  G.cop = to; G.moves++; G.hintNode = null;
+  G.history.push({ cop: G.cop, thief: G.thief, by: 'police' });
+  if (G.cop === G.thief) return finish('caught');
+  G.busy = true; render();
+  setTimeout(thiefMove, 450);
+}
+function thiefMove() {
+  const { m, S } = G, L = LEVELS[G.level];
+  const opts = m.adj[G.thief].filter(x => x !== G.cop);
+  if (!opts.length) { G.busy = false; return finish('cornered'); }
+  // A perfect thief takes the move that delays the catch longest; on lower levels it sometimes picks at random.
+  let best = perfectThief(m, S, G.cop, G.thief);
+  if (Math.random() > L.skill) best = rnd(opts);
+  G.trail = [G.thief, best]; G.thief = best; G.busy = false;
+  G.history.push({ cop: G.cop, thief: G.thief, by: 'thief' });
+  if (G.moves >= G.limit) return finish('escaped');
+  render();
+}
+function aiCopTurn() {
+  if (!G || G.role !== 'thief' || G.over) return;
+  const { m, S } = G, L = LEVELS[G.level];
+  G.cop = Math.random() < L.asThief.copSkill ? perfectCop(m, S, G.cop, G.thief) : greedyCop(m, G.cop, G.thief);
+  G.moves++; G.hintNode = null; G.busy = false;
+  G.history.push({ cop: G.cop, thief: G.thief, by: 'police' });
+  if (G.cop === G.thief) return finish('caught');
+  if (!m.adj[G.thief].some(x => x !== G.cop)) return finish('cornered');
+  if (G.moves >= G.survive) return finish('survived');
+  render();
+}
+function thiefStep(to) {
+  if (G.over || G.busy || to === G.cop || !G.m.adj[G.thief].includes(to)) return;
+  G.trail = [G.thief, to]; G.thief = to; G.hintNode = null;
+  G.history.push({ cop: G.cop, thief: G.thief, by: 'thief' });
+  G.busy = true; render();
+  setTimeout(aiCopTurn, 450);
+}
+// When you play the thief: can the best police now catch you before time runs out, whatever you do?
+function thiefLost() {
+  const { m, S } = G, left = G.survive - G.moves, opts = m.adj[G.thief].filter(x => x !== G.cop);
+  return opts.every(x => S.C[G.cop][x] < INF && plies2moves(S.C[G.cop][x]) <= left);
+}
+function finish(why) {
+  if (G.role === 'thief') {
+    G.over = why; G.busy = false;
+    G.stars = why === 'survived' ? Math.max(1, 3 - (LEVELS[G.level].hints - G.hints)) : 0;
+    render(); return;
+  }
+  G.over = why; G.busy = false;
+  G.stars = why === 'escaped' ? 0 : G.moves <= G.par ? 3 : G.moves <= G.par + 3 ? 2 : 1;
+  render();
+}
+function hint() {
+  if (!G.hints || G.over || G.busy) return;
+  const { m, S } = G;
+  if (G.role === 'thief') {
+    G.hints--;
+    G.hintNode = thiefLost() ? -1 : perfectThief(m, S, G.cop, G.thief);
+    render(); return;
+  }
+  if (S.C[G.cop][G.thief] >= INF) { G.hintNode = -1; G.hints--; render(); return; }
+  G.hintNode = m.adj[G.cop].reduce((a, b) => (b === G.thief ? 0 : S.T[b][G.thief]) < (a === G.thief ? 0 : S.T[a][G.thief]) ? b : a);
+  G.hints--; render();
+}
+
+/* ---------- replays ----------
+   Best route: from the starting position the police always take the move that catches fastest, and the thief
+   always takes the escape that delays the catch longest. That line is exactly par moves long. */
+function bestLine() {
+  const { m, S } = G; let c = G.start.cop, t = G.start.thief;
+  const line = [{ cop: c, thief: t, by: null }];
+  for (let guard = 0; guard < 200; guard++) {
+    c = m.adj[c].reduce((a, b) => (b === t ? 0 : S.T[b][t]) < (a === t ? 0 : S.T[a][t]) ? b : a);
+    line.push({ cop: c, thief: t, by: 'police' });
+    if (c === t) break;
+    if (G.role === 'thief' && line.filter(f => f.by === 'police').length >= G.survive) {
+      if (m.adj[t].some(x => x !== c)) { line[line.length - 1].survived = true; break; }
+    }
+    const opts = m.adj[t].filter(x => x !== c);
+    if (!opts.length) { line[line.length - 1].cornered = true; break; }
+    t = perfectThief(m, S, c, t);
+    line.push({ cop: c, thief: t, by: 'thief' });
+  }
+  return line;
+}
+let replayTimer = null;
+function stopReplay() { clearInterval(replayTimer); replayTimer = null; if (G && G.replay) G.replay.playing = false; }
+function startReplay(kind) {
+  stopReplay();
+  G.replay = { kind, line: kind === 'best' ? bestLine() : G.history.slice(), i: 0, playing: false };
+  playReplay();
+}
+function playReplay() {
+  const R = G.replay; if (!R) return;
+  if (R.i >= R.line.length - 1) R.i = 0;
+  R.playing = true; render();
+  replayTimer = setInterval(() => {
+    if (R.i < R.line.length - 1) { R.i++; render(); }
+    if (R.i >= R.line.length - 1) { stopReplay(); render(); }
+  }, 800);
+}
+function replayStep(d) { stopReplay(); const R = G.replay; R.i = Math.max(0, Math.min(R.line.length - 1, R.i + d)); render(); }
+function exitReplay() { stopReplay(); G.replay = null; render(); }
+const isDiag = (a, b) => G.m.roads.some(e => e.diag && ((e.a === a && e.b === b) || (e.a === b && e.b === a)));
+function replayCaption() {
+  const R = G.replay, f = R.line[R.i], prev = R.line[R.i - 1];
+  const policeMoves = R.line.slice(1, R.i + 1).filter(x => x.by === 'police').length;
+  if (!f.by) return 'Starting positions. The police move first.';
+  if (f.by === 'police') {
+    if (f.survived) return `Police move ${policeMoves} of ${G.survive}: the thief is still free. It survives!`;
+    if (f.cop === f.thief) return `Police move ${policeMoves}: onto the thief. Caught!`;
+    if (f.cornered) return `Police move ${policeMoves}: the thief has no road left that isn't blocked. Cornered!`;
+    return `Police move ${policeMoves}${isDiag(prev.cop, f.cop) ? ': takes a diagonal shortcut. This changes the rhythm of the chase.' : '.'}`;
+  }
+  return G.role === 'thief' ? `The thief slips away${isDiag(prev.thief, f.thief) ? ' along a diagonal shortcut, changing the rhythm' : ''} to the junction that keeps it free the longest.` : 'The thief runs to the junction that keeps it free the longest.';
+}
+
+/* ---------- drawing ---------- */
+const tokPolice = `<circle class="tok-p" r="22"/><polygon class="tok-p-star" points="${star(0, 0, 12, 5)}"/>`;
+const tokThief = `<circle class="tok-t" r="22"/><rect class="tok-t-mask" x="-17" y="-8" width="34" height="11" rx="5.5"/><circle class="tok-t-eye" cx="-7" cy="-2.5" r="2.6"/><circle class="tok-t-eye" cx="7" cy="-2.5" r="2.6"/>`;
+function star(cx, cy, R, r) { const p = []; for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, rr = k % 2 ? r : R; p.push((cx + rr * Math.cos(a)).toFixed(1) + ',' + (cy + rr * Math.sin(a)).toFixed(1)); } return p.join(' '); }
+function drawMap() {
+  const { m } = G, W = PAD * 2 + (m.cols - 1) * GAP, H = PAD * 2 + (m.rows - 1) * GAP;
+  let s = `<svg id="board" viewBox="0 0 ${W} ${H}" role="group" aria-label="Patrol map with ${m.nodes.length} junctions">`;
+  for (const e of m.roads) { const [x1, y1] = m.pos[e.a], [x2, y2] = m.pos[e.b];
+    s += `<line class="road${e.diag ? ' diag' : ''}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`; }
+  s += `<line id="trail" class="trail" x1="0" y1="0" x2="0" y2="0" visibility="hidden"/>`;
+  for (const i of m.nodes) { const [x, y] = m.pos[i];
+    s += `<g class="jn" data-i="${i}"><circle class="ring" cx="${x}" cy="${y}" r="13"/><circle class="node" cx="${x}" cy="${y}" r="11"/><circle class="hit" cx="${x}" cy="${y}" r="30"/></g>`; }
+  s += `<g id="paths"></g><g id="tokT" class="tok">${tokThief}</g><g id="tokP" class="tok">${tokPolice}</g><g id="fx"></g></svg>`;
+  document.getElementById('boardHost').innerHTML = s;
+  place('tokP', G.cop, true); place('tokT', G.thief, true);
+}
+function place(id, node, instant) {
+  const el = document.getElementById(id), [x, y] = G.m.pos[node];
+  if (instant) { el.style.transition = 'none'; el.getBoundingClientRect && el.getBoundingClientRect(); }
+  el.style.transform = `translate(${x}px, ${y}px)`;
+  if (instant) requestAnimationFrame(() => { el.style.transition = ''; });
+}
+function renderBoard() {
+  const { m } = G, R = G.replay, opts = G.over || G.busy || R ? [] : G.role === 'thief' ? m.adj[G.thief].filter(x => x !== G.cop) : m.adj[G.cop];
+  document.querySelectorAll('.jn').forEach(g => {
+    const i = +g.dataset.i, on = opts.includes(i);
+    g.classList.toggle('opt', on); g.classList.toggle('topt', on && G.role === 'thief'); g.classList.toggle('hint', i === G.hintNode);
+    if (on) { g.setAttribute('tabindex', '0'); g.setAttribute('role', 'button'); g.setAttribute('aria-label', G.role === 'thief' ? 'Move the thief to this junction' : 'Move police to this junction'); }
+    else { g.removeAttribute('tabindex'); g.removeAttribute('role'); g.removeAttribute('aria-label'); }
+  });
+  const frame = R ? R.line[R.i] : null;
+  place('tokP', frame ? frame.cop : G.cop); place('tokT', frame ? frame.thief : G.thief);
+  // replay paths: police steps numbered in blue, thief path dashed in pink
+  let paths = '';
+  if (R) {
+    const seen = R.line.slice(0, R.i + 1), pt = i => m.pos[i].join(',');
+    const pc = [], tc = [];
+    seen.forEach(f => { if (!pc.length || last(pc) !== f.cop) pc.push(f.cop); if (!tc.length || last(tc) !== f.thief) tc.push(f.thief); });
+    if (tc.length > 1) paths += `<polyline class="rp-thief" points="${tc.map(pt).join(' ')}"/>`;
+    if (pc.length > 1) paths += `<polyline class="rp-police" points="${pc.map(pt).join(' ')}"/>`;
+    let k = 0;
+    seen.forEach(f => { if (f.by === 'police') { k++; const [x, y] = m.pos[f.cop]; paths += `<g class="rp-num"><circle cx="${x - 24}" cy="${y - 24}" r="11"/><text x="${x - 24}" y="${y - 24}">${k}</text></g>`; } });
+  }
+  document.getElementById('paths').innerHTML = paths;
+  const tr = document.getElementById('trail');
+  if (G.trail.length === 2 && !G.over && !R) { const [a, b] = G.trail.map(i => m.pos[i]); tr.setAttribute('x1', a[0]); tr.setAttribute('y1', a[1]); tr.setAttribute('x2', b[0]); tr.setAttribute('y2', b[1]); tr.setAttribute('visibility', 'visible'); }
+  else tr.setAttribute('visibility', 'hidden');
+  const fx = document.getElementById('fx');
+  if (R) { const f = R.line[R.i]; fx.innerHTML = (f.cop === f.thief || f.cornered) ? `<circle class="caught-burst" cx="${m.pos[f.thief][0]}" cy="${m.pos[f.thief][1]}" r="30"/>` : ''; }
+  else if (G.over && G.over !== 'escaped' && G.over !== 'survived') { const [x, y] = m.pos[G.thief]; fx.innerHTML = `<circle class="caught-burst" cx="${x}" cy="${y}" r="30"/>`; }
+  else if (G.role !== 'thief' && G.hintNode != null && G.hintNode === G.thief) { const [x, y] = m.pos[G.thief]; fx.innerHTML = `<circle class="hint-ring" cx="${x}" cy="${y}" r="30"/>`; }
+  else fx.innerHTML = '';
+}
+
+/* ---------- panel ---------- */
+const roleSelect = () => `<label class="sel" for="role">Play as<select id="role"><option value="police"${role === 'police' ? ' selected' : ''}>Police: corner the thief</option><option value="thief"${role === 'thief' ? ' selected' : ''}>Thief: stay free</option></select></label>`;
+const levelSelect = () => `<label class="sel" for="lvl">Difficulty<select id="lvl">${Object.entries(LEVELS).map(([k, v]) => `<option value="${k}"${k === level ? ' selected' : ''}>${v.name}</option>`).join('')}</select></label>`;
+const starRow = n => `<span class="stars" aria-label="${n} of 3 stars">${[1, 2, 3].map(k => `<span class="${k <= n ? 'on' : ''}">★</span>`).join('')}</span>`;
+function replayBox(bestLabel) {
+  if (!G.over) return '';
+  if (!G.replay) return `<div class="btns"><button class="primary" data-act="rpBest">${bestLabel}</button><button data-act="rpMine">Replay your game</button></div>`;
+  return `<div class="replay">
+      <p class="eyebrow">${G.replay.kind === 'best' ? (G.role === 'thief' ? 'Best escape' : 'Best route') : 'Your game'} · step ${G.replay.i} of ${G.replay.line.length - 1}</p>
+      <p>${replayCaption()}</p>
+      <div class="btns">
+        <button data-act="rpFirst" aria-label="Back to the start">⏮</button>
+        <button data-act="rpBack" aria-label="Step back"${G.replay.i === 0 ? ' disabled' : ''}>◀</button>
+        <button class="primary" data-act="${G.replay.playing ? 'rpPause' : 'rpPlay'}">${G.replay.playing ? 'Pause' : 'Play'}</button>
+        <button data-act="rpNext" aria-label="Step forward"${G.replay.i >= G.replay.line.length - 1 ? ' disabled' : ''}>▶</button>
+        <button data-act="rpExit">Close replay</button>
+      </div>
+      <p class="muted" style="font-size:.85rem">Blue numbers are the police's moves; the dashed pink line is the thief's path.</p>
+    </div>`;
+}
+function renderThiefPanel() {
+  const L = LEVELS[G.level], left = G.survive - G.moves, P = document.getElementById('panel');
+  let msg;
+  if (G.over === 'survived') msg = `<div class="msg win"><b>You got away!</b> You stayed free for all ${G.survive} police moves${G.hints < L.hints ? `, using ${L.hints - G.hints} hint${L.hints - G.hints > 1 ? 's' : ''}` : ' without a hint'}.</div>`;
+  else if (G.over) msg = `<div class="msg warn"><b>${G.over === 'caught' ? 'Caught!' : 'Cornered!'}</b> The police got you after ${G.moves} of ${G.survive} moves. Watch the best escape to see how to survive, then try <b>Restart</b>.</div>`;
+  else if (G.hintNode === -1) msg = `<div class="msg warn">From here the police can catch you before time runs out if they play well. Restart the map to try a different escape.</div>`;
+  else if (G.hintNode != null) msg = `<div class="msg">Hint: run to the <b style="color:var(--gold)">gold</b> junction.</div>`;
+  else if (G.busy) msg = `<div class="msg">The police are moving…</div>`;
+  else if (G.level !== 'hard' && G.moves > 0 && thiefLost()) msg = `<div class="msg warn">Careful: the police can now catch you before time runs out if they play well. Hope for a mistake, or restart.</div>`;
+  else msg = `<div class="msg">Your move. Tap a highlighted junction next to you. You must move every turn, and you can't step onto the police.</div>`;
+  P.innerHTML = `
+    <p class="eyebrow">${L.name} · thief · ${G.m.nodes.length} junctions</p>
+    <h2>${G.over ? (G.over === 'survived' ? 'Got away' : 'Caught') : 'Stay free'}</h2>
+    <div class="stats">
+      <div class="stat"><b>${G.moves}</b><span>police moves survived</span></div>
+      <div class="stat"><b>${G.survive}</b><span>to survive</span></div>
+      <div class="stat"><b>${Math.max(0, left)}</b><span>still to go</span></div>
+    </div>
+    ${G.over ? starRow(G.stars) : ''}
+    ${G.replay ? '' : msg}
+    ${replayBox('Watch the best escape')}
+    <div class="btns">
+      <button data-act="hint"${!G.hints || G.over || G.busy ? ' disabled' : ''}>Hint (${G.hints} left)</button>
+      <button data-act="restart">Restart this map</button>
+      <button class="primary" data-act="new">New map</button>
+    </div>
+    ${roleSelect()}
+    ${levelSelect()}
+    <details>
+      <summary>How to play the thief</summary>
+      <ul>
+        <li>You are the thief (pink). The computer is the police (blue). Both of you can see each other.</li>
+        <li>The police move first. On every turn each side must move one step along a road. Nobody can wait, and you can't step onto the police.</li>
+        <li>Stay free for the number of police moves shown. You're caught if the police land on you, or if every road out of your junction leads to them.</li>
+        <li>Every map is checked before you play: escape is always possible. On Normal and Hard, the best police would catch you one move after the limit, so you must play well. On Hard, just running away from the police never works.</li>
+        <li>Stars: 3 for escaping without a hint, 2 with one hint, 1 with more.</li>
+        <li>Tip: loops are your friend. If you and the police step in rhythm around a loop of four roads, they can chase you forever. Watch out for triangles: they let the police change the rhythm.</li>
+      </ul>
+    </details>
+    <p class="muted" style="font-size:.85rem">Based on the cop-and-robber puzzle in "Is it possible to catch the Thief?" by Logically Yours.</p>`;
+}
+function render() {
+  renderBoard();
+  if (G.role === 'thief') return renderThiefPanel();
+  const L = LEVELS[G.level], left = G.limit - G.moves, P = document.getElementById('panel');
+  let msg = '';
+  if (G.over === 'caught' || G.over === 'cornered') msg = `<div class="msg win"><b>${G.over === 'caught' ? 'Caught!' : 'Cornered!'}</b> ${G.over === 'cornered' ? 'The thief had nowhere left to run. ' : ''}You needed ${G.moves} move${G.moves > 1 ? 's' : ''}; the best possible was ${G.par}.</div>`;
+  else if (G.over === 'escaped') msg = `<div class="msg warn"><b>The thief got away.</b> You ran out of moves. The best possible catch was ${G.par} moves: try <b>Restart</b> to replay this map.</div>`;
+  else if (G.hintNode === -1) msg = `<div class="msg warn">From here the thief can keep running forever. Restart the map to try a different route.</div>`;
+  else if (G.hintNode != null && G.hintNode === G.thief) msg = `<div class="msg">Hint: the thief is right next to you. Move onto it to make the catch!</div>`;
+  else if (G.hintNode != null) msg = `<div class="msg">Hint: move to the <b style="color:var(--gold)">gold</b> junction.</div>`;
+  else if (G.level !== 'hard' && G.moves > 0 && G.S.C[G.cop][G.thief] >= INF) msg = `<div class="msg warn">Careful: from here the thief can no longer be forced into a corner. Restart to try another route.</div>`;
+  else if (G.busy) msg = `<div class="msg">The thief is moving…</div>`;
+  else msg = `<div class="msg">Your move. Tap a highlighted junction next to you. You must move every turn, and so must the thief.</div>`;
+  P.innerHTML = `
+    <p class="eyebrow">${L.name} · ${G.m.nodes.length} junctions</p>
+    <h2>${G.over ? (G.over === 'escaped' ? 'Escaped' : 'Case closed') : 'Corner the thief'}</h2>
+    <div class="stats">
+      <div class="stat"><b>${G.moves}</b><span>moves used</span></div>
+      <div class="stat"><b>${G.par}</b><span>par (best possible)</span></div>
+      <div class="stat"><b>${Math.max(0, left)}</b><span>moves left</span></div>
+    </div>
+    ${G.over ? starRow(G.stars) : ''}
+    ${G.replay ? '' : msg}
+    ${replayBox(`Watch the best route (${G.par} moves)`)}
+    <div class="btns">
+      <button data-act="hint"${!G.hints || G.over || G.busy ? ' disabled' : ''}>Hint (${G.hints} left)</button>
+      <button data-act="restart">Restart this map</button>
+      <button class="primary" data-act="new">New map</button>
+    </div>
+    ${roleSelect()}
+    ${levelSelect()}
+    <details>
+      <summary>How to play</summary>
+      <ul>
+        <li>You are the police (blue). The computer is the thief (pink). Both of you can see each other.</li>
+        <li>You move first. On every turn each side must move one step along a road. Nobody can wait.</li>
+        <li>Catch the thief by moving onto its junction, or by leaving it no road to escape along.</li>
+        <li>Every map is checked before you play: a catch is always possible. Par is the fewest moves it can take against a perfect thief.</li>
+        <li>Stars: 3 for matching par, 2 for within 3 moves of par, 1 for any catch before you run out of moves. You get twice par plus 4 moves on Easy and Normal, and one and a half times par plus 2 on Hard.</li>
+        <li>Hard maps are checked so that simply walking toward the thief never works: you need a plan. Normal maps are checked so that it can't reach par.</li>
+        <li>Stuck? If you and the thief keep stepping in rhythm, you can chase it forever. Look for a triangle of roads: going around one changes the rhythm.</li>
+      </ul>
+    </details>
+    <p class="muted" style="font-size:.85rem">Based on the cop-and-robber puzzle in "Is it possible to catch the Thief?" by Logically Yours.</p>`;
+}
+
+/* ---------- input ---------- */
+const host = document.getElementById('boardHost');
+const act = i => G.role === 'thief' ? thiefStep(i) : copMove(i);
+host.addEventListener('click', e => { const g = e.target.closest('.jn.opt'); if (g) act(+g.dataset.i); });
+host.addEventListener('keydown', e => { const g = e.target.closest && e.target.closest('.jn.opt'); if (g && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); act(+g.dataset.i); } });
+document.getElementById('panel').addEventListener('click', e => {
+  const b = e.target.closest('button[data-act]'); if (!b || b.disabled) return;
+  ({ hint, restart, new: newGame, rpBest: () => startReplay('best'), rpMine: () => startReplay('mine'), rpPlay: playReplay,
+     rpPause: () => { stopReplay(); render(); }, rpBack: () => replayStep(-1), rpNext: () => replayStep(1),
+     rpFirst: () => { stopReplay(); G.replay.i = 0; render(); }, rpExit: exitReplay })[b.dataset.act]();
+});
+document.getElementById('panel').addEventListener('change', e => { if (e.target.id === 'lvl') { level = e.target.value; newGame(); } if (e.target.id === 'role') { role = e.target.value; newGame(); } });
+newGame();
+</script>
+
+</body>
+</html>
